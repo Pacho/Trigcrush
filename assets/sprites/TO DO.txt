@@ -1,0 +1,6 @@
+Nuevos modos:
+
+Grad-Rad
+Sin-Cos
+Tan-Cot
+Sec-Csc

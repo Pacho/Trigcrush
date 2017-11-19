@@ -1,0 +1,1080 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+	<meta charset="UTF-8" />
+    <title>TrigCrush</title>
+	<script type="text/javascript" src="js/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+var game = new Phaser.Game(800, 700, Phaser.CANVAS, 'TrigCrush', { preload: preload, create: create, render: render });
+
+var w = 790, h = 592;
+var ancho = 800, alto = 700;
+var GEM_SIZE = 64;
+var GEM_SPACING = 2;
+var GEM_SIZE_SPACED = GEM_SIZE + GEM_SPACING;
+var BOARD_COLS;
+var BOARD_ROWS;
+var MATCH_MIN = 3; // min number of same color gems required in a row to be considered a match
+
+var gems;
+var selectedGem = null;
+var selectedGemStartPos;
+var selectedGemTween;
+var tempShiftedGem = null;
+var allowInput;
+var time1 = 120; //tiempo de inicio de un juego
+var time2 = time1; //tiempo que lleva un juego
+
+var score = 0;
+var keyb;
+var gameMode = "SEL";
+var playing = false;	//Activa o desactiva mover fichas de juego y tiempo
+var menustate = true; 	//Activa o desactiva menu principal
+var menuselect = false; //Activa o desactiva menu secundario
+var gameover = false;	//Activa o desactiva menu de game over
+var gameModPrev;		//Guarda el modo de juego previo a perder.
+
+var gemHighlight = new Phaser.Graphics(game, 0,0);
+var highlightStorage = new Phaser.Graphics(game, -100, -100);
+
+function preload() {
+	
+	keyb=game.input.keyboard.createCursorKeys();
+	game.load.spritesheet("GRE", "assets/sprites/gradradeasy.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("GRH", "assets/sprites/gradradhard.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("SCE", "assets/sprites/sincoseasy.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("SCH", "assets/sprites/sincoshard.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("TCE", "assets/sprites/tancoteasy.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("TCH", "assets/sprites/tancothard.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("CSE", "assets/sprites/seccsceasy.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("CSH", "assets/sprites/seccschard.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("GMO", "assets/sprites/gameover.png", GEM_SIZE, GEM_SIZE);
+	game.load.spritesheet("SEL", "assets/sprites/select.png", GEM_SIZE, GEM_SIZE);
+	game.load.image('menupause', 'assets/sprites/pausemenu.png', 270, 180);
+	game.load.image('mainmenu', 'assets/sprites/mainmenu.png', 270, 180);
+	game.load.image('govermenu', 'assets/sprites/govermenu.png', 270, 180);
+	game.load.image('options', 'assets/sprites/options.png', 360, 270);
+	game.load.image('help', 'assets/sprites/help.png', 640, 480);
+	game.load.image('credits', 'assets/sprites/credits.png', 640, 480);
+	game.load.image('pausebottom', 'assets/sprites/pausebottom.png', 790, 592);
+	
+	//	Help images
+	game.load.image('generalHelp', 'assets/sprites/generalhelp.png', 640, 480);
+	game.load.image('gradradhelp', 'assets/sprites/gradradhelp.png', 640, 480);
+	game.load.image('sincoshelp', 'assets/sprites/sincoshelp.png', 640, 480);
+	game.load.image('tancothelp', 'assets/sprites/tancothelp.png', 640, 480);
+	game.load.image('seccschelp', 'assets/sprites/seccschelp.png', 640, 480);
+	
+	//	Background
+	game.load.image('background', 'assets/sprites/pizarra.png', 790, 592);
+	
+	//	Timer init
+	barPos = { x: 10, y: 600};
+	barSize = { width: 550, height: 30};
+	background = game.add.graphics(barPos.x-2, barPos.y-2);
+	timeBar = game.add.graphics(barPos.x,barPos.y);
+	
+	//	Initialize the gem highlight graphics
+	//	Top bar
+	var highlightColor = 0xCC00CC;
+	gemHighlight.beginFill(highlightColor);
+	gemHighlight.lineStyle(1, highlightColor, 1);
+	gemHighlight.lineTo(GEM_SIZE+2, -2);
+	gemHighlight.lineTo(GEM_SIZE+2, +2);
+	gemHighlight.lineTo(-2, +2);
+	gemHighlight.lineTo(-2,-2);
+	gemHighlight.endFill();
+	
+	//	Left bar
+	gemHighlight.beginFill(highlightColor);
+	gemHighlight.lineStyle(1, highlightColor, 1);
+	gemHighlight.lineTo(+2, -2);
+	gemHighlight.lineTo(+2, GEM_SIZE+2);
+	gemHighlight.lineTo(-2, GEM_SIZE+2);
+	gemHighlight.lineTo(-2,-2);
+	gemHighlight.endFill();
+	
+	//	Bottom bar
+	gemHighlight.moveTo(-2, GEM_SIZE-2);
+	gemHighlight.beginFill(highlightColor);
+	gemHighlight.lineStyle(1, highlightColor, 1);
+	gemHighlight.lineTo(GEM_SIZE+2, GEM_SIZE-2);
+	gemHighlight.lineTo(GEM_SIZE+2, GEM_SIZE+2);
+	gemHighlight.lineTo(-2, GEM_SIZE+2);
+	gemHighlight.lineTo(-2,GEM_SIZE-2);
+	gemHighlight.endFill();
+	
+	//	Right bar
+	gemHighlight.moveTo(GEM_SIZE-2, -2);
+	gemHighlight.beginFill(highlightColor);
+	gemHighlight.lineStyle(1, highlightColor, 1);
+	gemHighlight.lineTo(GEM_SIZE+2, -2);
+	gemHighlight.lineTo(GEM_SIZE+2, GEM_SIZE+2);
+	gemHighlight.lineTo(GEM_SIZE-2, GEM_SIZE+2);
+	gemHighlight.lineTo(GEM_SIZE-2,-2);
+	gemHighlight.endFill();
+}
+
+function create() {
+	
+	game.add.sprite(0,0, 'background');
+
+    // fill the screen with as many gems as possible
+	//spawnBoard();
+	menuGame();
+    // currently selected gem starting position. used to stop player form moving gems too far.
+    selectedGemStartPos = { x: 0, y: 0 };
+    
+    // used to disable input while gems are dropping down and respawning
+    allowInput = true;
+
+    game.input.setMoveCallback(slideGem, this);
+	
+}
+
+function restartGame(){
+//	Clear background
+	var backgroundCanvas = game.add.graphics(0,0);
+	backgroundCanvas.beginFill(0x000000);
+	backgroundCanvas.lineStyle(1, 0x000000, 1);
+	
+	backgroundCanvas.lineTo(w, 0);
+	backgroundCanvas.lineTo(w, h);
+	backgroundCanvas.lineTo(0, h);
+	backgroundCanvas.lineTo(0,0);
+	backgroundCanvas.endFill();
+// fill the screen with as many gems as possible
+	spawnBoard();
+	if(playing)
+		startTimer(time1); 
+}
+
+function menuSprite(){
+//Llama al Stage el sprite del menu
+		mainmenu = game.add.sprite(w/2, h/2, 'mainmenu'); 	// Colocar en el centro el menu
+		mainmenu.anchor.setTo(0.5, 0.5);				// mover a la mitad.
+        // And a label to illustrate which menu item was chosen. (This is not necessary)
+        choiseLabelMenu = game.add.text(ancho/2, alto-20, 'TrigCrush', { font: '30px Arial', fill: '#fff' });
+        choiseLabelMenu.anchor.setTo(0.5, 0.5);
+		}
+
+function menuGame(){
+	console.log(game.input.onDown.getNumListeners());
+		menuSprite();
+		//Exit menu
+		game.input.onDown.add(salirmenu, self);
+	function salirmenu(event){
+   		if(menustate){
+            // Calculate the corners of the menu
+            var x1 = w/2 - 180/2, x2 = w/2 + 180/2,
+                y1 = h/2 - 270/2, y2 = h/2 + 270/2;
+            // Check if the click was inside the menu
+            if(event.x > x1 && event.x < x2 && event.y > y1 && event.y < y2 ){
+				game.input.onDown.remove(salirmenu,self);
+               // Get menu local coordinates for the click
+                var x = event.x - x1,
+                    y = event.y - y1;
+                // Calculate the choice 
+                var choice2 = Math.floor(y / 90);
+		
+				//Play game
+				if(choice2 == 0){
+					mainmenu.destroy();	
+					choiseLabelMenu.destroy();
+					menustate = false;		
+					menuselect = true;
+					showHelp();
+				//	subMenu();
+				}
+				//Help game
+				if(choice2 == 1){
+					mainmenu.destroy();	
+					choiseLabelMenu.destroy();
+					menustate = false;
+					//Show Help
+					showHelp();
+				}
+				//Credits
+				if(choice2 == 2){
+					mainmenu.destroy();	
+					choiseLabelMenu.destroy();
+					menustate = false;	
+				//Show Credits
+				var menucreditos = true;
+				creditosimage = game.add.sprite(w/2, h/2, 'credits');
+				creditosimage.anchor.setTo(0.5, 0.5);
+				game.input.onDown.add(salircreditos, self);
+				function salircreditos(event){
+					 if(menucreditos){
+						var x_1 = w/2 - 640/2, x_2 = w/2 + 640/2,
+							y_1 = h/2 - 480/2, y_2 = h/2 + 480/2;
+						if(event.x > x_1 && event.x < x_2 && event.y > y_1 && event.y < y_2 ){
+						}
+						else{
+						//Back to menu
+						game.input.onDown.remove(salircreditos, self);
+						creditosimage.destroy();
+						menuGame();
+						menustate = true;
+						menucreditos = false;
+						}
+					}
+				}
+				}
+
+			}
+        }
+	}
+}
+
+function subMenu(){
+		submenu = game.add.sprite(w/2, h/2, 'options'); 	// Colocar en el centro el menu
+		submenu.anchor.setTo(0.5, 0.5);						// mover a la mitad.
+		//Exit menu
+		game.input.onDown.add(salirmenuselect, self);
+	function salirmenuselect(event){
+   		if(menuselect){
+			
+            // Calculate the corners of the menu
+            var x1 = w/2 - 360/2, x2 = w/2 + 360/2,
+                y1 = h/2 - 270/2, y2 = h/2 + 270/2;
+            // Check if the click was inside the menu
+            if(event.x > x1 && event.x < x2 && event.y > y1 && event.y < y2 ){
+                // Get menu local coordinates for the click
+                var x = event.x - x1,
+                    y = event.y - y1;
+                // Calculate the choice 
+                var choice2 = Math.floor(x / 90) + 4*Math.floor(y / 90);
+
+			//Modos de juego
+			switch(choice2){
+			case 4:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "GRE";
+				showHelp();
+			//	restartGame();
+			break;
+			case 5:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "SCE";
+				showHelp();
+			//	restartGame();
+			break;
+			case 6:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "GRH";
+				showHelp();
+			//	restartGame();
+			break;
+			case 7:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "SCH";
+				showHelp();
+			//	restartGame();
+			break;
+			case 8:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "TCE";
+				showHelp();
+			//	restartGame();
+			break;
+			case 9:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "CSE";
+				showHelp();
+			//	restartGame();
+			break;
+			case 10:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "TCH";
+				showHelp();
+			//	restartGame();
+			break;
+			case 11:
+			game.input.onDown.remove(salirmenuselect, self);
+				submenu.destroy();
+				menuselect = false;
+			//	playing = true;
+				gameMode = "CSH";
+				showHelp();
+			//	restartGame();
+			break;
+			default:
+			}
+
+			}// End if choicemap
+			else{
+			submenu.destroy();
+			menuselect = false;
+			menuGame();
+			menustate = true;
+			
+			}
+        }
+	}
+}
+
+
+
+
+function gameOver(){
+	//Guarda el modo de juego previo y pone el modo Game over.
+	gameModPrev = gameMode; 	
+	gameMode = "GMO";
+	restartGame();
+	playing = false;
+	gameover = true;
+		///menu
+		govermenu = game.add.sprite(w/2, h/2, 'govermenu'); 	// Colocar en el centro el menu
+		govermenu.anchor.setTo(0.5, 0.5);				// mover a la mitad.
+        // And a label to illustrate which menu item was chosen. (This is not necessary)
+        goverLabel = game.add.text(ancho/2, alto-20, 'El juego ha terminado.', { font: '28px Arial', fill: '#fff' });
+        goverLabel.anchor.setTo(0.5, 0.5);
+		//Exit menu
+		game.input.onDown.add(salirgameover, self);
+	function salirgameover(event){	
+		if(gameover){
+			var x1 = w/2 - 180/2, x2 = w/2 + 180/2,
+                y1 = h/2 - 270/2, y2 = h/2 + 270/2;
+            // Check if the click was inside the menu
+            if(event.x > x1 && event.x < x2 && event.y > y1 && event.y < y2 ){
+			game.input.onDown.remove(salirgameover, self);
+                // Get menu local coordinates for the click
+                var x = event.x - x1,
+                    y = event.y - y1;
+                // Calculate the choice 
+                var choice2 = Math.floor(y / 90);
+				
+				//Game Over
+				if(choice2 == 0){
+				goverLabel.text = 'Yes, you lose The Game.'
+				}
+				//Restart
+				if(choice2 == 1){
+					//salir del game over
+					govermenu.destroy();
+					goverLabel.destroy();
+					gameover = false;
+					playing = true;
+					//Ir a modo de juego previo
+					gameMode = gameModPrev;
+					restartGame();
+				}
+				//Main Menu
+				if(choice2 == 2){
+					//Poner menu
+					menustate = true;				
+					menuGame();
+					//Salir del game over 
+					gameover = false;
+					playing = false;
+					govermenu.destroy();
+					goverLabel.destroy();
+					gameMode = "SEL"; //Necesario para inhabilitar boton pausa.
+				}				
+				
+				}// End if choicemap
+		
+		
+		}
+	}	
+}
+
+
+function pauseGame(){
+	pause_label = game.add.text(ancho - 100, alto - 100, 'Pausa', { font: '24px Arial', fill: '#fff' }); //Boton de pausa
+	pause_label.inputEnabled = true;
+	pause_label.events.onInputUp.add(function () {
+        // When the paus button is pressed, we pause the game
+        if(gameMode != "GMO" && gameMode != "SEL"){
+		game.paused = true;
+		playing = false;
+		
+        // Then add the menu
+		pausebottom = game.add.sprite(0,0,'pausebottom'); //Fondo de pausa (solo sirve para no ver el tablero mientras esta pausado)
+        menu = game.add.sprite(w/2, h/2, 'menupause'); 	// Colocar en el centro el menu
+		menu.anchor.setTo(0.5, 0.5);				// mover a la mitad.
+
+        // And a label to illustrate which menu item was chosen. (This is not necessary) Por eliminar...
+        choiseLabelPause = game.add.text(ancho/2, alto-150, 'Menu de Pausa', { font: '30px Arial', fill: '#000' });
+        choiseLabelPause.anchor.setTo(0.5, 0.5);
+		// Add a input listener that can help us return from being paused
+		game.input.onDown.add(unpause, self);
+		}
+    });
+    // And finally the method that handels the pause menu
+    
+}
+function unpause(event){
+        // Only act if paused
+        if(game.paused){
+
+            // Calculate the corners of the menu
+            var x1 = w/2 - 180/2, x2 = w/2 + 180/2,
+                y1 = h/2 - 360/2, y2 = h/2 + 360/2;
+
+            // Check if the click was inside the menu
+            if(event.x > x1 && event.x < x2 && event.y > y1 && event.y < y2 ){
+				game.input.onDown.remove(unpause, self);
+                // The choicemap is an array that will help us see which item was clicked
+                var choisemap = ['Resume', 'Restart', 'Menu'];
+
+                // Get menu local coordinates for the click
+                var x = event.x - x1,
+                    y = event.y - y1;
+
+                // Calculate the choice 
+                var choise = Math.floor(y / 90);
+
+                // Display the choice
+                console.log('You chose menu item: ' + choisemap[choise]);
+				
+				//Resume game
+				if(choise == 0){
+					menu.destroy();
+					pausebottom.destroy();
+					choiseLabelPause.destroy();
+					game.paused = false; // Unpause the game
+					playing = true;
+					restartTimer(time2);			
+				}
+				//Restart game
+				if(choise == 1){
+					playing = true;
+					game.paused = false;
+					menu.destroy();
+					pausebottom.destroy();
+					choiseLabelPause.destroy();
+					restartGame();
+				}
+				//Help
+				if(choise == 2){
+					showHelp();
+				}
+				//Go to menu
+				if(choise == 3){
+					menustate = true;
+					game.paused = false;
+					playing = false;
+					menu.destroy();
+					pausebottom.destroy();
+					choiseLabelPause.destroy();
+					gameMode = "SEL"; //Necesario para inhabilitar boton pausa.
+					menuGame();
+				}
+			}
+        }
+    
+	}
+	
+function render() {
+		
+    game.debug.text("TrigCrush. Universidad Simón Bolívar.", 10, 650);
+	game.debug.text("Puntaje: " + score, 565, 610);
+	game.debug.text("Tiempo: " + time2, 565, 625);
+	
+	if(game.time.events.length==1)
+		delayToShow = game.time.events.duration;
+	
+	if(playing)
+		updateTime();
+
+}
+
+
+function releaseGem() {
+
+	highlightStorage.addChild(gemHighlight);
+    if (tempShiftedGem === null) {
+        selectedGem = null;
+        return;
+    }
+
+    // when the mouse is released with a gem selected
+    // 1) check for matches
+    // 2) remove matched gems
+    // 3) drop down gems above removed gems
+    // 4) refill the board
+	
+    checkAndKillGemMatches();
+
+    removeKilledGems();
+
+    var dropGemDuration = dropGems();
+
+    // delay board refilling until all existing gems have dropped down
+    game.time.events.add(dropGemDuration * 10, refillBoard);
+
+    allowInput = false;
+
+    selectedGem = null;
+    tempShiftedGem = null;
+
+}
+
+function slideGem(pointer, x, y) {
+
+    // check if a selected gem should be moved and do it
+
+    if (selectedGem && pointer.isDown)
+    {
+        var cursorGemPosX = getGemPos(x);
+        var cursorGemPosY = getGemPos(y);
+
+        if (checkIfGemCanBeMovedHere(selectedGemStartPos.x, selectedGemStartPos.y, cursorGemPosX, cursorGemPosY))
+        {
+            if (cursorGemPosX !== selectedGem.posX || cursorGemPosY !== selectedGem.posY)
+            {
+                // move currently selected gem
+                if (selectedGemTween !== null)
+                {
+                    game.tweens.remove(selectedGemTween);
+                }
+
+                selectedGemTween = tweenGemPos(selectedGem, cursorGemPosX, cursorGemPosY);
+
+                gems.bringToTop(selectedGem);
+
+                // if we moved a gem to make way for the selected gem earlier, move it back into its starting position
+                if (tempShiftedGem !== null)
+                {
+                    tweenGemPos(tempShiftedGem, selectedGem.posX , selectedGem.posY);
+                    swapGemPosition(selectedGem, tempShiftedGem);
+                }
+
+                // when the player moves the selected gem, we need to swap the position of the selected gem with the gem currently in that position 
+                tempShiftedGem = getGem(cursorGemPosX, cursorGemPosY);
+
+                if (tempShiftedGem === selectedGem)
+                {
+                    tempShiftedGem = null;
+                }
+                else
+                {
+                    tweenGemPos(tempShiftedGem, selectedGem.posX, selectedGem.posY);
+                    swapGemPosition(selectedGem, tempShiftedGem);
+                }
+            }
+        }
+    }
+}
+
+// fill the screen with as many gems as possible
+function spawnBoard() {
+
+	//	Removes the old gems properly before spawning a new board
+	var tScore = score;
+	if(gems != null){
+		killGemRange(0,0, BOARD_COLS, BOARD_ROWS);
+	}
+	score = tScore;
+	if(gameMode != "GMO") //En caso de perder no borrar score.
+	{
+		score = 0;
+	}
+    BOARD_COLS = 12; // Math.floor(game.world.width / GEM_SIZE_SPACED);
+    BOARD_ROWS = 9; // Math.floor(game.world.height / GEM_SIZE_SPACED);
+
+    gems = game.add.group();
+
+    for (var i = 0; i < BOARD_COLS; i++)
+    {
+        for (var j = 0; j < BOARD_ROWS; j++)
+        {
+            var gem = gems.create(i * GEM_SIZE_SPACED, j * GEM_SIZE_SPACED, gameMode);
+            gem.name = 'gem' + i.toString() + 'x' + j.toString();
+            gem.inputEnabled = true;
+            gem.events.onInputDown.add(selectGem, this);
+            gem.events.onInputUp.add(releaseGem, this);
+            randomizeGemColor(gem);
+            setGemPos(gem, i, j); // each gem has a position on the board
+			
+			/////////// Check for killable gems
+			
+        }
+    }
+	pauseGame();
+}
+
+// select a gem and remember its starting position
+function selectGem(gem) {
+
+    if (allowInput)
+    {		
+        selectedGem = gem;
+        selectedGemStartPos.x = gem.posX;
+        selectedGemStartPos.y = gem.posY;
+		selectedGem.addChild(gemHighlight);
+    }
+
+}
+
+// find a gem on the board according to its position on the board
+function getGem(posX, posY) {
+
+    return gems.iterate("id", calcGemId(posX, posY), Phaser.Group.RETURN_CHILD);
+
+}
+
+// convert world coordinates to board position
+function getGemPos(coordinate) {
+
+    return Math.floor(coordinate / GEM_SIZE_SPACED);
+
+}
+
+// set the position on the board for a gem
+function setGemPos(gem, posX, posY) {
+
+    gem.posX = posX;
+    gem.posY = posY;
+    gem.id = calcGemId(posX, posY);
+
+}
+
+// the gem id is used by getGem() to find specific gems in the group
+// each position on the board has a unique id
+function calcGemId(posX, posY) {
+
+    return posX + posY * BOARD_COLS;
+
+}
+
+// since the gems are a spritesheet, their color is the same as the current frame number
+function getGemColor(gem) {
+
+    return gem.frame%5;
+
+}
+
+// set the gem spritesheet to a random frame
+function randomizeGemColor(gem) {
+
+    gem.frame = game.rnd.integerInRange(0, gem.animations.frameTotal - 1);
+
+}
+
+// gems can only be moved 1 square up/down or left/right
+function checkIfGemCanBeMovedHere(fromPosX, fromPosY, toPosX, toPosY) {
+
+    if (toPosX < 0 || toPosX >= BOARD_COLS || toPosY < 0 || toPosY >= BOARD_ROWS)
+    {
+        return false;
+    }
+
+    if (fromPosX === toPosX && fromPosY >= toPosY - 1 && fromPosY <= toPosY + 1)
+    {
+        return true;
+    }
+
+    if (fromPosY === toPosY && fromPosX >= toPosX - 1 && fromPosX <= toPosX + 1)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+// count how many gems of the same color lie in a given direction
+// eg if moveX=1 and moveY=0, it will count how many gems of the same color lie to the right of the gem
+// stops counting as soon as a gem of a different color or the board end is encountered
+function countSameColorGems(startGem, moveX, moveY) {
+
+    var curX = startGem.posX + moveX;
+    var curY = startGem.posY + moveY;
+    var count = 0;
+
+    while (curX >= 0 && curY >= 0 && curX < BOARD_COLS && curY < BOARD_ROWS && getGemColor(getGem(curX, curY)) === getGemColor(startGem))
+    {
+        count++;
+        curX += moveX;
+        curY += moveY;
+    }
+
+    return count;
+
+}
+
+// swap the position of 2 gems when the player drags the selected gem into a new location
+function swapGemPosition(gem1, gem2) {
+
+    var tempPosX = gem1.posX;
+    var tempPosY = gem1.posY;
+    setGemPos(gem1, gem2.posX, gem2.posY);
+    setGemPos(gem2, tempPosX, tempPosY);
+
+}
+
+// count how many gems of the same color are above, below, to the left and right
+// if there are more than 3 matched horizontally or vertically, kill those gems
+// if no match was made, move the gems back into their starting positions
+function checkAndKillGemMatches() {
+
+    if (selectedGem === null) { return; }
+
+    if (tempShiftedGem === null ) { return; }
+	
+	if (playing === false) { return; }
+
+    var canKill = false;
+
+    // process the selected gem
+
+    var countUp = countSameColorGems(selectedGem, 0, -1);
+    var countDown = countSameColorGems(selectedGem, 0, 1);
+    var countLeft = countSameColorGems(selectedGem, -1, 0);
+    var countRight = countSameColorGems(selectedGem, 1, 0);
+
+    var countHoriz = countLeft + countRight + 1;
+    var countVert = countUp + countDown + 1;
+
+    if (countVert >= MATCH_MIN)
+    {
+        killGemRange(selectedGem.posX, selectedGem.posY - countUp, selectedGem.posX, selectedGem.posY + countDown);
+        canKill = true;
+    }
+
+    if (countHoriz >= MATCH_MIN)
+    {
+        killGemRange(selectedGem.posX - countLeft, selectedGem.posY, selectedGem.posX + countRight, selectedGem.posY);
+        canKill = true;
+    }
+
+    // now process the shifted (swapped) gem
+
+    countUp = countSameColorGems(tempShiftedGem, 0, -1);
+    countDown = countSameColorGems(tempShiftedGem, 0, 1);
+    countLeft = countSameColorGems(tempShiftedGem, -1, 0);
+    countRight = countSameColorGems(tempShiftedGem, 1, 0);
+
+    countHoriz = countLeft + countRight + 1;
+    countVert = countUp + countDown + 1;
+
+    if (countVert >= MATCH_MIN)
+    {
+        killGemRange(tempShiftedGem.posX, tempShiftedGem.posY - countUp, tempShiftedGem.posX, tempShiftedGem.posY + countDown);
+        canKill = true;
+    }
+
+    if (countHoriz >= MATCH_MIN)
+    {
+        killGemRange(tempShiftedGem.posX - countLeft, tempShiftedGem.posY, tempShiftedGem.posX + countRight, tempShiftedGem.posY);
+        canKill = true;
+    }
+
+    if (! canKill) // there are no	 matches so swap the gems back to the original positions
+    {
+        var gem = selectedGem;
+
+        if (gem.posX !== selectedGemStartPos.x || gem.posY !== selectedGemStartPos.y)
+        {
+            if (selectedGemTween !== null)
+            {
+                game.tweens.remove(selectedGemTween);
+            }
+
+            selectedGemTween = tweenGemPos(gem, selectedGemStartPos.x, selectedGemStartPos.y);
+
+            if (tempShiftedGem !== null)
+            {
+                tweenGemPos(tempShiftedGem, gem.posX, gem.posY);
+            }
+
+            swapGemPosition(gem, tempShiftedGem);
+
+            tempShiftedGem = null;
+
+        }
+    }
+
+}
+
+// kill all gems from a starting position to an end position
+function killGemRange(fromX, fromY, toX, toY) {
+
+    fromX = Phaser.Math.clamp(fromX, 0, BOARD_COLS - 1);
+    fromY = Phaser.Math.clamp(fromY , 0, BOARD_ROWS - 1);
+    toX = Phaser.Math.clamp(toX, 0, BOARD_COLS - 1);
+    toY = Phaser.Math.clamp(toY, 0, BOARD_ROWS - 1);
+	
+	for (var i = fromX; i <= toX; i++)
+    {
+        for (var j = fromY; j <= toY; j++)
+        {
+			score++;
+			addTime(0.5)
+			var gem = getGem(i, j);
+            gem.kill();
+        }
+    }
+	
+}
+
+// move gems that have been killed off the board
+function removeKilledGems() {
+
+    gems.forEach(function(gem) {
+        if (!gem.alive) {
+            setGemPos(gem, -1,-1);
+        }
+    });
+
+}
+
+// animated gem movement
+function tweenGemPos(gem, newPosX, newPosY, durationMultiplier) {
+
+    console.log('Tween ',gem.name,' from ',gem.posX, ',', gem.posY, ' to ', newPosX, ',', newPosY);
+    if (durationMultiplier === null || typeof durationMultiplier === 'undefined')
+    {
+        durationMultiplier = 1;
+    }
+
+    return game.add.tween(gem).to({x: newPosX  * GEM_SIZE_SPACED, y: newPosY * GEM_SIZE_SPACED}, 100 * durationMultiplier, Phaser.Easing.Linear.None, true);
+
+}
+
+// look for gems with empty space beneath them and move them down
+function dropGems() {
+
+    var dropRowCountMax = 0;
+
+    for (var i = 0; i < BOARD_COLS; i++)
+    {
+        var dropRowCount = 0;
+
+        for (var j = BOARD_ROWS - 1; j >= 0; j--)
+        {
+            var gem = getGem(i, j);
+
+            if (gem === null)
+            {
+                dropRowCount++;
+            }
+            else if (dropRowCount > 0)
+            {
+                setGemPos(gem, gem.posX, gem.posY + dropRowCount);
+                tweenGemPos(gem, gem.posX, gem.posY, dropRowCount);
+            }
+        }
+
+        dropRowCountMax = Math.max(dropRowCount, dropRowCountMax);
+    }
+
+    return dropRowCountMax;
+
+}
+
+// look for any empty spots on the board and spawn new gems in their place that fall down from above
+function refillBoard() {
+
+    var maxGemsMissingFromCol = 0;
+
+    for (var i = 0; i < BOARD_COLS; i++)
+    {
+        var gemsMissingFromCol = 0;
+
+        for (var j = BOARD_ROWS - 1; j >= 0; j--)
+        {
+            var gem = getGem(i, j);
+
+            if (gem === null)
+            {
+                gemsMissingFromCol++;
+                gem = gems.getFirstDead();
+                gem.reset(i * GEM_SIZE_SPACED, -gemsMissingFromCol * GEM_SIZE_SPACED);
+                randomizeGemColor(gem);
+                setGemPos(gem, i, j);
+                tweenGemPos(gem, gem.posX, gem.posY, gemsMissingFromCol * 2);
+            }
+        }
+
+        maxGemsMissingFromCol = Math.max(maxGemsMissingFromCol, gemsMissingFromCol);
+    }
+
+    game.time.events.add(maxGemsMissingFromCol * 2 * 100, boardRefilled);
+
+}
+
+// when the board has finished refilling, re-enable player input
+function boardRefilled() {
+
+    allowInput = true;
+
+}
+
+
+
+//***********************************************************************************************************************
+// Time code
+var timeBar;
+var startTime;
+var endTime;
+var elapsedTime = 0;
+var barPos;
+var barSize;
+var background;
+
+function startTimer(end){
+	startTime = this.game.time.totalElapsedSeconds();
+	endTime = end;
+	
+	background.beginFill(0xFFFFFF);
+	background.lineStyle(1, 0xFFFFFF, 1);
+	
+	background.lineTo(barSize.width+4, 0);
+	background.lineTo(barSize.width+4, barSize.height+4);
+	background.lineTo(0, barSize.height+4);
+	background.lineTo(0,0);
+	background.endFill();
+	
+	timeBar.beginFill(0x0000CC);
+	timeBar.lineStyle(1, 0x0000CC, 1);
+	
+	timeBar.lineTo(barSize.width, 0);
+	timeBar.lineTo(barSize.width, barSize.height);
+	timeBar.lineTo(0, barSize.height);
+	timeBar.lineTo(0,0);
+	timeBar.endFill();
+}
+
+function restartTimer(end)
+{
+	startTime = this.game.time.totalElapsedSeconds();
+	endTime = end;
+}
+function addTime(seconds){
+	startTime += seconds;
+	var elapsedTime = this.game.time.totalElapsedSeconds();
+	if( startTime - elapsedTime > 0)
+		startTime = elapsedTime;
+}
+function updateTime(){
+	/*Repasando:
+	time: es el tiempo que va corriendo
+	time1: es el tiempo de inicio de un juego
+	time2: guarda el instante de tiempo donde se pausó el juego
+	*/
+	var time = (endTime - this.game.time.totalElapsedSeconds() + startTime).toFixed(2);
+	time2 = time;
+	timeBar.clear();
+	
+	if(time < 0){
+
+		//	Call end menu
+		gameOver();
+	}
+	else{
+		timeBar.beginFill(0x0000CC);
+		timeBar.lineStyle(1, 0x0000CC, 1);
+		timeBar.lineTo((barSize.width*(time/time1)), 0);
+		timeBar.lineTo((barSize.width*(time/time1)), barSize.height);
+		timeBar.lineTo(0, barSize.height);
+		timeBar.lineTo(0,0);
+		timeBar.endFill();
+	}
+	
+	}
+	
+
+function showHelp(){
+	switch(gameMode){
+	case "GRE":
+	case "GRH":
+		helpMenu = game.add.sprite(w/2, h/2, 'gradradhelp');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("GR HELP");
+	break;
+	case "SCE":
+	case "SCH":
+		helpMenu = game.add.sprite(w/2, h/2, 'sincoshelp');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("SC HELP");
+	break;
+	case "TCE":
+	case "TCH":
+		helpMenu = game.add.sprite(w/2, h/2, 'tancothelp');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("TC HELP");
+	break;
+	case "CSE":
+	case "CSH":
+		helpMenu = game.add.sprite(w/2, h/2, 'seccschelp');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("CS HELP");
+	break;
+	case "SEL":
+		helpMenu = game.add.sprite(w/2, h/2, 'generalHelp');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("GN HELP");
+		break;
+	default:
+		helpMenu = game.add.sprite(w/2, h/2, 'help');
+		helpMenu.anchor.setTo(0.5,0.5);
+		console.log("DF HELP");
+	break;
+	}
+	var helpEnable = true;
+	game.input.onDown.add(exitHelp, self);
+	function exitHelp(event){
+		if(helpEnable){
+			game.input.onDown.remove(exitHelp, self);
+			console.log("HELP EXIT");
+			helpEnable = false;
+			helpMenu.destroy();
+			if(game.paused){
+				game.input.onDown.add(unpause, self);
+				return;
+			}
+			if(!playing && gameMode != "SEL"){
+				playing = true;
+				restartGame();
+				console.log("HELP: subMenu");
+			}
+			if(!playing && gameMode == "SEL" && !menuselect){	//	Ayuda de menu principal
+				console.log("HELP: menuGame");
+				menustate = true;
+				menuGame();
+			}
+			if(!playing && gameMode == "SEL" && menuselect){	//	Ayuda de menu principal antes de seleccion de juego
+				subMenu();
+				console.log("HELP: subMenu");
+			}
+		}
+	}
+}
+
+</script>
+
+</body>
+</html>
